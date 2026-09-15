@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// ============================================================
+// REGRAS DO FIRESTORE
+// Cole isso em: Firebase Console > Firestore Database > Regras
+// ============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Coleção PÚBLICA — é o que o QR Code / verify.html consulta.
+    // Qualquer pessoa pode LER um documento se souber o ID exato
+    // (que só existe dentro do QR Code), mas NINGUÉM pode listar
+    // todos os documentos, e ninguém pode alterar ou apagar depois
+    // de criado — isso garante que o registro não pode ser adulterado.
+    match /fotos/{id} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasAll(
+                         ['createdAt','dn','loja','responsavel','lat','lon',
+                          'address','imageHash','foto','mimeType']
+                       )
+                    && request.resource.data.dn is string
+                    && request.resource.data.loja is string
+                    && request.resource.data.responsavel is string
+                    && request.resource.data.foto is string
+                    && request.resource.data.foto.size() < 900000;
+      allow update, delete: if false;
+    }
+
+    // Coleção PRIVADA — guarda o CPF isolado do registro público.
+    // Ninguém consegue ler pelo app (allow read: if false).
+    // Só é visível para quem tiver acesso ao painel do Firebase.
+    match /fotos_privado/{id} {
+      allow read: if false;
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasAll(['cpf','responsavel']);
+      allow update, delete: if false;
+    }
+  }
+}
