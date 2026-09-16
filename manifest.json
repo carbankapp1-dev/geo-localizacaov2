@@ -1,6 +1,6 @@
 {
   "name": "Câmera Geolocalizada",
-  "short_name": "CâmGeo",
+  "short_name": "GeoCam",
   "description": "Câmera com marca d'água, código DN, loja e geolocalização",
   "start_url": "./index.html",
   "scope": "./",
