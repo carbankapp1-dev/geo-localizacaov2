@@ -1,19 +1,21 @@
 rules_version = '2';
 
 // ============================================================
-// REGRAS DO FIRESTORE
+// REGRAS DO FIRESTORE — versão COM CÓDIGO DE ACESSO
 // Cole isso em: Firebase Console > Firestore Database > Regras
 // ============================================================
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Coleção PÚBLICA — é o que o QR Code / verify.html consulta.
-    // Qualquer pessoa pode LER um documento se souber o ID exato
-    // (que só existe dentro do QR Code), mas NINGUÉM pode listar
-    // todos os documentos, e ninguém pode alterar ou apagar depois
-    // de criado — isso garante que o registro não pode ser adulterado.
+    // Coleção de fotos — a diferença chave desta versão: NINGUÉM
+    // consegue ler direto pelo navegador (nem sabendo o ID), só
+    // consegue CRIAR (quando o app tira a foto). A leitura só
+    // acontece através do Cloudflare Worker, que usa uma chave de
+    // administrador que ignora estas regras por completo — é o
+    // Worker quem decide, checando o código digitado, se libera
+    // ou não o conteúdo pra quem está do outro lado.
     match /fotos/{id} {
-      allow get: if true;
+      allow get: if false;
       allow list: if false;
       allow create: if request.auth != null
                     && request.resource.data.keys().hasAll(
@@ -37,5 +39,14 @@ service cloud.firestore {
                     && request.resource.data.keys().hasAll(['cpf','responsavel']);
       allow update, delete: if false;
     }
+
+    // Lista de códigos de acesso pessoais. Cadastrada e mantida
+    // manualmente pelo Console do Firebase (ver README.md, Passo 7).
+    // Ninguém lê ou escreve aqui pelo navegador — só o Worker, com
+    // a chave de administrador, que ignora esta regra.
+    match /codigos_acesso/{codigo} {
+      allow read, write: if false;
+    }
   }
 }
+

@@ -1,10 +1,12 @@
-const CACHE_NAME = 'camera-geo-v21';
+const CACHE_NAME = 'camera-geo-auth-v3';
 const ASSETS = [
   './',
   './index.html',
   './verify.html',
+  './admin.html',
   './manifest.json',
   './firebase-config.js',
+  './worker-config.js',
   './icons/android-chrome-192x192.png',
   './icons/android-chrome-512x512.png',
   './icons/apple-touch-icon.png',

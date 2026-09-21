@@ -1,6 +1,6 @@
 {
-  "name": "Câmera Geolocalizada",
-  "short_name": "GeoCam",
+  "name": "GeoCam TESTE (com login)",
+  "short_name": "GeoCam TST",
   "description": "Câmera com marca d'água, código DN, loja e geolocalização",
   "start_url": "./index.html",
   "scope": "./",

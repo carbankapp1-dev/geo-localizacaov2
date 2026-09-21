@@ -1,22 +1,22 @@
 // ============================================================
-// CONFIGURAÇÃO DO FIREBASE — projeto: camera-geolocalizacao
+// CONFIGURAÇÃO DO FIREBASE — projeto de TESTE (com código de acesso)
+// Preencha com as credenciais do NOVO projeto Firebase (ver README.md,
+// Passo 1). NÃO use as credenciais do projeto principal aqui.
 // ============================================================
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBPNculsiJiz20IW3IReG7D_2_xD4JZdek",
-  authDomain: "camera-geolocalizacao-f231f.firebaseapp.com",
-  projectId: "camera-geolocalizacao-f231f",
-  messagingSenderId: "338980626940",
-  appId: "1:338980626940:web:fe443c30b032d67c419279"
+  apiKey: "AIzaSyBAN6NhMVken_jCUy_HwY51lvafrZbMq8A",
+  authDomain: "geocamv3.firebaseapp.com",
+  projectId: "geocamv3",
+  messagingSenderId: "22690765272",
+  appId: "1:22690765272:web:4d2ad2206cb52f34727aad"
 };
 
-// URL pública onde o verify.html está hospedado
-const VERIFY_BASE_URL = "https://carbankapp1-dev.github.io/foto-carro-geo-localizacao/verify.html";
+// URL pública onde este site de teste está hospedado
+const VERIFY_BASE_URL = "https://carbankapp1-dev.github.io/geocam/verify.html";
 
-// Chave do OpenCage Geocoder (plano gratuito de teste, sem cartão).
-// Chamado direto do navegador — mesmo modelo de exposição do firebaseConfig
-// acima: é uma chave pública de baixo risco, sem dado financeiro exposto.
-const OPENCAGE_API_KEY = "c702168f5585450680b9052f5a900f46";
+// Chave do OpenCage Geocoder.
+const OPENCAGE_API_KEY = "6a31f09acc5d42cfb073514d739e6cb5";
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
