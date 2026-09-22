@@ -1,6 +1,6 @@
 {
-  "name": "GeoCam TESTE (com login)",
-  "short_name": "GeoCam TST",
+  "name": "GeoCam v5 (com login)",
+  "short_name": "GeoCam v5",
   "description": "Câmera com marca d'água, código DN, loja e geolocalização",
   "start_url": "./index.html",
   "scope": "./",
