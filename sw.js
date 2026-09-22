@@ -1,4 +1,4 @@
-const CACHE_NAME = 'camera-geo-auth-v6';
+const CACHE_NAME = 'camera-geo-auth-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -45,6 +45,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const isHTML =
+    event.request.mode === 'navigate' ||
+    (event.request.headers.get('accept') || '').includes('text/html');
+
+  if (isHTML) {
+    // Network-first para HTML (index.html, verify.html, admin.html):
+    // sempre busca a versão mais recente na rede; só usa o cache
+    // como fallback se o dispositivo estiver offline.
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first para assets estáticos (ícones, manifest, configs) —
+  // mudam raramente, então priorizamos velocidade.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
