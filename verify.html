@@ -223,6 +223,22 @@ codigoInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') validarCodigo();
 });
 
+function slugify(texto) {
+  return String(texto || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function formatarDataArquivo(dataISO) {
+  const d = dataISO ? new Date(dataISO) : new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}${mm}${yy}`;
+}
+
 function renderFoto(foto) {
   document.getElementById('foto').src = foto.foto
     ? `data:${foto.mimeType || 'image/jpeg'};base64,${foto.foto}`
@@ -231,7 +247,15 @@ function renderFoto(foto) {
   document.getElementById('result').classList.remove('hidden');
 
   document.getElementById('btnPrint').addEventListener('click', () => {
+    const tituloOriginal = document.title;
+    const lojaSlug = slugify(foto.loja) || 'loja';
+    const dataSlug = formatarDataArquivo(foto.createdAt);
+    document.title = `validacao_foto_${lojaSlug}_${dataSlug}`;
+
     window.print();
+
+    // Restaura o título normal da página depois de imprimir/cancelar
+    setTimeout(() => { document.title = tituloOriginal; }, 500);
   });
 }
 </script>
