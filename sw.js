@@ -1,4 +1,4 @@
-const CACHE_NAME = 'camera-geo-auth-v3';
+const CACHE_NAME = 'camera-geo-auth-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -12,7 +12,6 @@ const ASSETS = [
   './icons/apple-touch-icon.png',
   './icons/favicon-16x16.png',
   './icons/favicon-32x32.png',
-  './icons/marca-dagua.png',
   './favicon.ico'
 ];
 

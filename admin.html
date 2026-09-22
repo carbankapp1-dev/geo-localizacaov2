@@ -93,19 +93,22 @@
 <body>
 <main>
   <h1>Cadastro em lote</h1>
-  <p class="sub">Cadastra vários códigos de acesso de uma vez na coleção <code>codigos_acesso</code>.</p>
+  <p class="sub">Cadastra vários CPFs de acesso de uma vez na coleção <code>codigos_acesso</code>.</p>
 
   <label for="senha">Senha de administrador</label>
   <input id="senha" type="password" autocomplete="off" placeholder="Digite a senha">
 
   <label for="lista">Lista de pessoas</label>
   <div class="example">Um por linha, neste formato:
-CÓDIGO, Nome completo
+CPF, Nome completo
 
 Exemplo:
-DKX3KJK, Marcos Alexandre Custodio
-DKX3DRQ, Paoline Helena de Souza Aguiar
-H7P2M4Z, Ana Souza</div>
+17587773894, Marcos Alexandre Custodio
+09876543211, Paoline Helena de Souza Aguiar
+45612378900, Ana Souza
+
+(Pode colar com ponto/traço também — o sistema remove
+automaticamente e guarda só os números.)</div>
   <textarea id="lista" placeholder="COLE AQUI A LISTA, UMA PESSOA POR LINHA"></textarea>
   <div class="count" id="contagem">0 linha(s) reconhecida(s)</div>
 
@@ -137,7 +140,7 @@ function parseLista(texto) {
     .map((linha) => {
       const [codigo, ...resto] = linha.split(',');
       return {
-        codigo: (codigo || '').trim().toUpperCase(),
+        codigo: (codigo || '').replace(/\D/g, ''),
         nome: resto.join(',').trim()
       };
     })

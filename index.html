@@ -66,9 +66,6 @@
     gap: 5px;
     min-width: 0;
   }
-  .field.field-dn {
-    flex: 0 0 92px;
-  }
   .field label {
     font-size: 12px;
     color: #9db3cc;
@@ -84,10 +81,6 @@
     outline: none;
     width: 100%;
     min-width: 0;
-  }
-  .field-dn input {
-    text-align: center;
-    padding: 10px 6px;
   }
   .field input:focus {
     border-color: #45d492;
@@ -129,19 +122,12 @@
     border-radius: 20px;
     white-space: nowrap;
   }
-  #plateGuideCloseup {
-    transform: translateY(0);
-  }
   .plate-guide-frame {
     width: 30%;
     aspect-ratio: 2.4/1;
     border: 3px dashed rgba(255,255,255,0.85);
     border-radius: 8px;
     box-shadow: 0 0 0 2000px rgba(0,0,0,0.28);
-  }
-  .plate-guide-frame-big {
-    width: 82%;
-    aspect-ratio: 2.4/1;
   }
   .status {
     font-size: 13px;
@@ -214,31 +200,12 @@
       <div class="plate-guide-label">Posicione a placa aqui</div>
       <div class="plate-guide-frame"></div>
     </div>
-    <div id="plateGuideCloseup" class="plate-guide hidden">
-      <div class="plate-guide-label">Agora, foto só da placa</div>
-      <div class="plate-guide-frame plate-guide-frame-big"></div>
-    </div>
   </div>
 
   <div class="field-row">
-    <div class="field field-dn">
-      <label for="inputDN">Código DN</label>
-      <input id="inputDN" type="text" inputmode="numeric" maxlength="5" autocomplete="off">
-    </div>
     <div class="field">
       <label for="inputLoja">Nome da loja</label>
       <input id="inputLoja" type="text" autocomplete="off">
-    </div>
-  </div>
-
-  <div class="field-row">
-    <div class="field">
-      <label for="inputCPF">CPF do responsável</label>
-      <input id="inputCPF" type="text" inputmode="numeric" maxlength="14" autocomplete="off">
-    </div>
-    <div class="field">
-      <label for="inputResp">Nome do responsável</label>
-      <input id="inputResp" type="text" autocomplete="off">
     </div>
   </div>
 
@@ -264,29 +231,21 @@
 <script>
 const video = document.getElementById('video');
 const plateGuide = document.getElementById('plateGuide');
-const plateGuideCloseup = document.getElementById('plateGuideCloseup');
-let shotStage = 1; // 1 = traseira + placa | 2 = foto só da placa (close-up)
 const canvas = document.getElementById('canvas');
 const preview = document.getElementById('preview');
 const statusEl = document.getElementById('status');
 const infoBox = document.getElementById('infoBox');
 const btnShoot = document.getElementById('btnShoot');
 const uploadStatus = document.getElementById('uploadStatus');
-const inputDN = document.getElementById('inputDN');
 const inputLoja = document.getElementById('inputLoja');
-const inputCPF = document.getElementById('inputCPF');
-const inputResp = document.getElementById('inputResp');
 
-// ---------- Persistência dos campos no aparelho (cache local) ----------
+// ---------- Persistência do campo no aparelho (cache local) ----------
 const FIELDS_STORAGE_KEY = 'camera-geo-campos';
 
 function saveFieldsToStorage() {
   try {
     localStorage.setItem(FIELDS_STORAGE_KEY, JSON.stringify({
-      dn: inputDN.value,
-      loja: inputLoja.value,
-      cpf: inputCPF.value,
-      resp: inputResp.value
+      loja: inputLoja.value
     }));
   } catch (e) { /* localStorage indisponível — ignora silenciosamente */ }
 }
@@ -296,16 +255,11 @@ function restoreFieldsFromStorage() {
     const raw = localStorage.getItem(FIELDS_STORAGE_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
-    inputDN.value = data.dn || '';
     inputLoja.value = data.loja || '';
-    inputCPF.value = data.cpf || '';
-    inputResp.value = data.resp || '';
   } catch (e) { /* ignora dados corrompidos */ }
 }
 
-[inputDN, inputLoja, inputCPF, inputResp].forEach((el) => {
-  el.addEventListener('input', saveFieldsToStorage);
-});
+inputLoja.addEventListener('input', saveFieldsToStorage);
 restoreFieldsFromStorage();
 const installBtn = document.getElementById('installBtn');
 const qrHolder = document.getElementById('qrHolder');
@@ -313,10 +267,6 @@ const qrHolder = document.getElementById('qrHolder');
 let stream = null;
 let currentCoords = null;
 let currentAddress = 'Endereço não disponível';
-let logoImg = new Image();
-let logoReady = false;
-logoImg.onload = () => { logoReady = true; };
-logoImg.src = 'icons/marca-dagua.png';
 
 function setStatus(msg, kind) {
   statusEl.textContent = msg;
@@ -326,30 +276,6 @@ function setUploadStatus(msg, kind) {
   uploadStatus.textContent = msg;
   uploadStatus.className = 'status' + (kind ? ' ' + kind : '');
   uploadStatus.classList.remove('hidden');
-}
-
-// ---------- Máscara e validação de CPF ----------
-inputCPF.addEventListener('input', () => {
-  let v = inputCPF.value.replace(/\D/g, '').slice(0, 11);
-  if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
-  else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
-  else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
-  inputCPF.value = v;
-});
-
-function isValidCPF(cpf) {
-  cpf = (cpf || '').replace(/\D/g, '');
-  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
-  let sum = 0;
-  for (let i = 0; i < 9; i++) sum += parseInt(cpf[i]) * (10 - i);
-  let rev = 11 - (sum % 11);
-  if (rev >= 10) rev = 0;
-  if (rev !== parseInt(cpf[9])) return false;
-  sum = 0;
-  for (let i = 0; i < 10; i++) sum += parseInt(cpf[i]) * (11 - i);
-  rev = 11 - (sum % 11);
-  if (rev >= 10) rev = 0;
-  return rev === parseInt(cpf[10]);
 }
 
 // ---------- Câmera ----------
@@ -469,24 +395,6 @@ async function fetchAddress(lat, lon) {
 }
 
 // ---------- Captura + marca d'água ----------
-function drawTiledWatermark(ctx, w, h) {
-  if (!logoReady) return;
-  const tileW = Math.max(60, w * 0.14);
-  const scale = tileW / logoImg.width;
-  const tileH = logoImg.height * scale;
-  const gapX = tileW * 0.85;
-  const gapY = tileH * 0.85;
-
-  ctx.save();
-  ctx.globalAlpha = 0.20;
-  for (let y = -tileH; y < h + tileH; y += tileH + gapY) {
-    for (let x = -tileW; x < w + tileW; x += tileW + gapX) {
-      ctx.drawImage(logoImg, x, y, tileW, tileH);
-    }
-  }
-  ctx.restore();
-}
-
 // Reserva espaço à direita para o QR Code quando reservedRight > 0
 function drawInfoOverlay(ctx, w, h, reservedRight) {
   reservedRight = reservedRight || 0;
@@ -496,24 +404,10 @@ function drawInfoOverlay(ctx, w, h, reservedRight) {
     ? `${currentCoords.lat.toFixed(6)}, ${currentCoords.lon.toFixed(6)}`
     : 'Coordenadas não disponíveis';
 
-  const dn = inputDN.value.trim();
   const loja = inputLoja.value.trim();
-  const cpf = inputCPF.value.trim();
-  const responsavel = inputResp.value.trim();
 
   const lines = [];
-  if (dn || loja) {
-    const parts = [];
-    if (dn) parts.push('DN: ' + dn);
-    if (loja) parts.push('Loja: ' + loja);
-    lines.push(parts.join('   •   '));
-  }
-  if (responsavel || cpf) {
-    const parts = [];
-    if (responsavel) parts.push('Responsável: ' + responsavel);
-    if (cpf) parts.push('CPF: ' + cpf);
-    lines.push(parts.join('   •   '));
-  }
+  if (loja) lines.push('Loja: ' + loja);
   lines.push(dateStr);
   lines.push(coordStr);
   lines.push('Endereço: ' + currentAddress);
@@ -565,19 +459,11 @@ let rawFrameCanvas = document.createElement('canvas');
 function resetToCamera() {
   preview.classList.add('hidden');
   video.classList.remove('hidden');
+  plateGuide.classList.remove('hidden');
   uploadStatus.classList.add('hidden');
   btnShoot.disabled = false;
+  btnShoot.textContent = 'Tirar foto e compartilhar';
   resumeCameraIfNeeded();
-
-  if (shotStage === 1) {
-    plateGuide.classList.remove('hidden');
-    plateGuideCloseup.classList.add('hidden');
-    btnShoot.textContent = 'Tirar foto e compartilhar';
-  } else {
-    plateGuide.classList.add('hidden');
-    plateGuideCloseup.classList.remove('hidden');
-    btnShoot.textContent = 'Tirar foto da placa e compartilhar';
-  }
 }
 
 // ---------- Gerar QR Code e desenhar no canvas ----------
@@ -676,18 +562,6 @@ async function shareOrDownloadPhoto(dataUrl, filename) {
 
 // ---------- Ação única: tira a foto, gera QR, envia e salva ----------
 async function shootAndSave() {
-  const cpf = inputCPF.value.trim();
-  const responsavel = inputResp.value.trim();
-
-  if (!responsavel) {
-    setUploadStatus('Preencha o nome do responsável antes de tirar a foto.', 'err');
-    return;
-  }
-  if (!isValidCPF(cpf)) {
-    setUploadStatus('CPF inválido. Confira os números digitados.', 'err');
-    return;
-  }
-
   btnShoot.disabled = true;
   btnShoot.textContent = 'Processando…';
   setUploadStatus('Capturando foto…');
@@ -703,13 +577,11 @@ async function shootAndSave() {
 
   const ctx = canvas.getContext('2d');
   ctx.drawImage(rawFrameCanvas, 0, 0, w, h);
-  drawTiledWatermark(ctx, w, h);
   drawInfoOverlay(ctx, w, h, 0);
   preview.src = canvas.toDataURL('image/jpeg', 0.92);
   preview.classList.remove('hidden');
   video.classList.add('hidden');
   plateGuide.classList.add('hidden');
-  plateGuideCloseup.classList.add('hidden');
 
   try {
     const id = (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
@@ -719,7 +591,6 @@ async function shootAndSave() {
     // Redesenha do zero a partir do frame cru, já com espaço reservado pro QR
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(rawFrameCanvas, 0, 0, w, h);
-    drawTiledWatermark(ctx, w, h);
     const boxHeight = drawInfoOverlay(ctx, w, h, w * 0.28);
     await drawQrOnCanvas(ctx, w, h, verifyUrl, boxHeight);
 
@@ -728,9 +599,8 @@ async function shootAndSave() {
     preview.src = finalDataUrl;
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    const dnSlug = inputDN.value.trim().replace(/\s+/g, '-') || 'sem-dn';
-    const tipoFoto = shotStage === 1 ? 'traseira' : 'placa';
-    const filename = `foto-${tipoFoto}-${dnSlug}-${ts}.jpg`;
+    const lojaSlug = inputLoja.value.trim().replace(/\s+/g, '-') || 'sem-loja';
+    const filename = `foto-${lojaSlug}-${ts}.jpg`;
 
     // Abre o compartilhamento (WhatsApp, etc.) logo em seguida ao clique,
     // enquanto o navegador ainda reconhece a ação como iniciada pelo usuário
@@ -749,9 +619,7 @@ async function shootAndSave() {
 
     await db.collection('fotos').doc(id).set({
       createdAt,
-      dn: inputDN.value.trim(),
       loja: inputLoja.value.trim(),
-      responsavel,
       lat: currentCoords ? currentCoords.lat : null,
       lon: currentCoords ? currentCoords.lon : null,
       address: currentAddress,
@@ -760,29 +628,15 @@ async function shootAndSave() {
       mimeType: 'image/jpeg'
     });
 
-    await db.collection('fotos_privado').doc(id).set({
-      cpf,
-      responsavel,
-      createdAt
-    });
+    setUploadStatus('Foto enviada ✔ — tudo pronto para o próximo carro', 'ok');
 
-    if (shotStage === 1) {
-      setUploadStatus('Foto da traseira enviada ✔ — agora tire a foto da placa', 'ok');
-      shotStage = 2;
-    } else {
-      setUploadStatus('Foto da placa enviada ✔ — tudo pronto para o próximo carro', 'ok');
-      shotStage = 1;
-    }
-
-    // Os campos NÃO são limpos — ficam prontos para a segunda foto
-    // (ou para o próximo carro, se o usuário preferir manter os mesmos dados)
+    // O campo da loja NÃO é limpo — fica pronto para o próximo carro,
+    // se o usuário preferir manter os mesmos dados
     setTimeout(resetToCamera, 900);
   } catch (err) {
     setUploadStatus('Erro ao salvar: ' + err.message, 'err');
     btnShoot.disabled = false;
-    btnShoot.textContent = shotStage === 1
-      ? 'Tirar foto e compartilhar'
-      : 'Tirar foto da placa e compartilhar';
+    btnShoot.textContent = 'Tirar foto e compartilhar';
   }
 }
 

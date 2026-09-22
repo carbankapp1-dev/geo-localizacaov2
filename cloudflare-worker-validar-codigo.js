@@ -21,8 +21,7 @@
 // C) Limpeza automática (roda sozinha, todo dia, sem ação manual)
 //    1. Todo dia, na hora configurada no "Cron Trigger" da
 //       Cloudflare (ver README.md), o Worker apaga sozinho todas
-//       as fotos com mais de RETENTION_DAYS dias — junto com o
-//       registro correspondente em "fotos_privado".
+//       as fotos com mais de RETENTION_DAYS dias.
 //    2. Isso existe pra não estourar o limite gratuito de 1 GiB de
 //       armazenamento do Firestore, já que cada foto ocupa bastante
 //       espaço (é a imagem inteira, guardada como texto).
@@ -71,8 +70,9 @@ export default {
       return handleAdminCleanupNow(body, env);
     }
 
-    // ---------- Rota padrão: validar código e liberar a foto ----------
-    const { id, codigo } = body;
+    // ---------- Rota padrão: validar código (CPF) e liberar a foto ----------
+    const { id } = body;
+    const codigo = String(body.codigo || '').replace(/\D/g, '');
     if (!id || !codigo) {
       return jsonResponse({ error: 'Faltando id ou código' }, 400);
     }
@@ -161,7 +161,10 @@ async function firestoreBatchWrite(projectId, codigos, accessToken) {
   const base = `projects/${projectId}/databases/(default)/documents`;
   const writes = codigos.map((item) => ({
     update: {
-      name: `${base}/codigos_acesso/${item.codigo.trim()}`,
+      // Normaliza pra só números — se alguém colar CPF formatado
+      // (com ponto/traço) de uma planilha, ele fica igual ao que o
+      // verify.html envia na hora de validar.
+      name: `${base}/codigos_acesso/${String(item.codigo).replace(/\D/g, '')}`,
       fields: {
         nome: { stringValue: item.nome.trim() },
         ativo: { booleanValue: true }
@@ -199,9 +202,8 @@ async function handleAdminCleanupNow(body, env) {
   }
 }
 
-// Apaga, em lotes, todas as fotos (e o registro correspondente em
-// fotos_privado) mais antigas que RETENTION_DAYS dias. Retorna quantas
-// fotos foram apagadas ao todo.
+// Apaga, em lotes, todas as fotos mais antigas que RETENTION_DAYS dias.
+// Retorna quantas fotos foram apagadas ao todo.
 async function cleanupOldPhotos(env) {
   const accessToken = await getGoogleAccessToken(env);
   const projectId = env.FIREBASE_PROJECT_ID;
@@ -209,7 +211,7 @@ async function cleanupOldPhotos(env) {
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   let totalApagadas = 0;
-  const LOTE = 250; // 250 fotos = até 500 gravações por commit (foto + fotos_privado), dentro do limite de 500 do Firestore
+  const LOTE = 500; // 500 fotos = até 500 gravações por commit (1 por foto), no limite do Firestore
   const MAX_LOTES_POR_EXECUCAO = 20; // trava de segurança: no máximo 5.000 fotos por execução
 
   for (let i = 0; i < MAX_LOTES_POR_EXECUCAO; i++) {
@@ -267,15 +269,10 @@ async function firestoreQueryOldPhotos(projectId, cutoffIso, limit, accessToken)
     });
 }
 
-// Apaga, num único commit, os documentos "fotos/{id}" e
-// "fotos_privado/{id}" de cada ID da lista.
+// Apaga, num único commit, o documento "fotos/{id}" de cada ID da lista.
 async function firestoreBatchDelete(projectId, ids, accessToken) {
   const base = `projects/${projectId}/databases/(default)/documents`;
-  const writes = [];
-  for (const id of ids) {
-    writes.push({ delete: `${base}/fotos/${id}` });
-    writes.push({ delete: `${base}/fotos_privado/${id}` });
-  }
+  const writes = ids.map((id) => ({ delete: `${base}/fotos/${id}` }));
 
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
   const res = await fetch(url, {

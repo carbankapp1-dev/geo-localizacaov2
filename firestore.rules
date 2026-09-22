@@ -19,29 +19,17 @@ service cloud.firestore {
       allow list: if false;
       allow create: if request.auth != null
                     && request.resource.data.keys().hasAll(
-                         ['createdAt','dn','loja','responsavel','lat','lon',
+                         ['createdAt','loja','lat','lon',
                           'address','imageHash','foto','mimeType']
                        )
-                    && request.resource.data.dn is string
                     && request.resource.data.loja is string
-                    && request.resource.data.responsavel is string
                     && request.resource.data.foto is string
                     && request.resource.data.foto.size() < 900000;
       allow update, delete: if false;
     }
 
-    // Coleção PRIVADA — guarda o CPF isolado do registro público.
-    // Ninguém consegue ler pelo app (allow read: if false).
-    // Só é visível para quem tiver acesso ao painel do Firebase.
-    match /fotos_privado/{id} {
-      allow read: if false;
-      allow create: if request.auth != null
-                    && request.resource.data.keys().hasAll(['cpf','responsavel']);
-      allow update, delete: if false;
-    }
-
-    // Lista de códigos de acesso pessoais. Cadastrada e mantida
-    // manualmente pelo Console do Firebase (ver README.md, Passo 7).
+    // Lista de códigos de acesso pessoais (CPF de cada pessoa). Cadastrada
+    // e mantida pelo admin.html ou manualmente pelo Console do Firebase.
     // Ninguém lê ou escreve aqui pelo navegador — só o Worker, com
     // a chave de administrador, que ignora esta regra.
     match /codigos_acesso/{codigo} {
