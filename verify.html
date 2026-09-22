@@ -115,13 +115,13 @@
   .gate .error-msg { color: #ff7a7a; font-size: 13px; margin-top: 12px; min-height: 18px; text-align: center; }
 
   @media print {
+    @page { margin: 8mm; }
     body { background: #ffffff; color: #111827; }
     .btn-download { display: none !important; }
-    .card { background: #ffffff; border: 1px solid #d1d9e6; break-inside: avoid; }
-    .row .k { color: #4b5563; }
-    .row .v { color: #111827; }
-    .badge.ok { background: #e6f9f0; color: #0f9d58; }
-    img.foto { border-color: #d1d9e6; }
+    .sub { display: none !important; }
+    .card { display: none !important; }
+    img.foto { border-color: #d1d9e6; max-height: 90vh; }
+    h1 { margin-bottom: 10px; }
   }
 </style>
 </head>
