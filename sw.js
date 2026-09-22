@@ -1,4 +1,4 @@
-const CACHE_NAME = 'camera-geo-auth-v5';
+const CACHE_NAME = 'camera-geo-auth-v6';
 const ASSETS = [
   './',
   './index.html',

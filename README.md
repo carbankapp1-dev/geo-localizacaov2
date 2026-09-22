@@ -1,4 +1,4 @@
-# GeoCam TESTE — Versão com código de acesso pessoal
+# GeoCam v5 — Versão com código de acesso pessoal
 
 Este é um **ambiente separado** do seu app principal. Nada aqui afeta o
 site que já está no ar (`carbankapp1-dev.github.io/foto-carro-geo-localizacao`).
@@ -22,6 +22,7 @@ está, sem digitar de novo.
 5. [Pegar a chave de administrador (conta de serviço)](#passo-5)
 6. [Criar a conta na Cloudflare e o Worker](#passo-6)
 6B. [Cadastro em lote — para várias pessoas de uma vez](#passo-6b)
+6C. [Limpeza automática — apagar fotos antigas sozinho](#passo-6c)
 7. [Cadastrar os códigos de acesso das pessoas (um por um)](#passo-7)
 8. [Publicar os arquivos do site no GitHub](#passo-8)
 9. [Testar tudo](#passo-9)
@@ -220,17 +221,20 @@ Todo mundo é cadastrado de uma vez.
 3. Na caixa de texto grande, cole a lista de pessoas, **uma por
    linha**, neste formato:
    ```
-   CÓDIGO, Nome completo
+   CPF, Nome completo
    ```
    Exemplo, para várias pessoas:
    ```
-   DKX3KJK, Marcos Alexandre Custodio
-   DKX3DRQ, Paoline Helena de Souza Aguiar
-   H7P2M4Z, Ana Souza
-   Q1W2E3R, Carlos Eduardo Lima
+   17587773894, Marcos Alexandre Custodio
+   09876543211, Paoline Helena de Souza Aguiar
+   45612378900, Ana Souza
+   32165498700, Carlos Eduardo Lima
    ```
+   (O CPF pode ser colado com ou sem ponto/traço — o sistema
+   remove a formatação sozinho e guarda só os números.)
+
    (Dica: se você já tem essa lista numa planilha do Excel/Google
-   Sheets com uma coluna "código" e outra "nome", pode selecionar as
+   Sheets com uma coluna "CPF" e outra "nome", pode selecionar as
    duas colunas, copiar, e colar direto na caixa — geralmente já cola
    certinho, separado por vírgula ou tab. Se colar separado por TAB
    em vez de vírgula, funciona igual, o sistema reconhece os dois.)
@@ -252,6 +256,68 @@ problema**: quem já existia só tem o nome atualizado (continua
 > administrador com a equipe em geral — é só pra quem cuida do
 > cadastro. A senha é o único ponto que impede qualquer pessoa de
 > cadastrar códigos falsos.
+
+---
+
+<a id="passo-6c"></a>
+## Passo 6C — Limpeza automática (apagar fotos antigas sozinho)
+
+Cada foto ocupa bastante espaço no banco de dados (é a imagem inteira).
+O plano gratuito do Firestore só tem **1 GiB no total**, então, com um
+volume alto de fotos por dia, o espaço esgota rápido se nada for
+apagado. Esta função resolve isso: **todo dia**, sozinha, sem
+precisar abrir nada, ela apaga as fotos com mais de **2 dias**.
+
+### Como funciona
+
+O Worker já tem o código pronto pra isso (função `cleanupOldPhotos`).
+Falta só um passo pra ele **rodar sozinho automaticamente**: criar um
+"Cron Trigger" (agendamento) na Cloudflare.
+
+### Como configurar
+
+1. Na Cloudflare, abra o seu Worker (`validar-codigo` ou o nome que
+   você deu)
+2. Vá na aba **"Triggers"** (Gatilhos)
+3. Procure a seção **"Cron Triggers"** → clique em **"Add Cron Trigger"**
+   (Adicionar gatilho Cron)
+4. No campo de expressão, digite:
+   ```
+   0 6 * * *
+   ```
+   Isso significa **"todo dia, às 6h da manhã (horário UTC)"** —
+   equivale a **3h da manhã no horário de Brasília**, quando
+   praticamente ninguém está usando o app.
+5. Clique em **Salvar** (Add / Save)
+
+Pronto — a partir de agora, todo dia de madrugada, o próprio Worker
+vai apagar sozinho qualquer foto com mais de 2 dias, sem precisar de
+nenhuma ação sua.
+
+### Testando sem esperar o dia seguinte
+
+Não precisa esperar até de madrugada pra saber se está funcionando:
+
+1. Abra o `admin.html`
+2. Role até a seção **"Manutenção"**, no final da página
+3. Digite a senha de administrador (o mesmo campo do cadastro em lote)
+4. Clique em **"🧹 Executar limpeza agora"**
+5. Deve aparecer uma mensagem tipo **"✔ 3 foto(s) apagada(s)"**
+   (o número varia de acordo com quantas fotos realmente já
+   passaram de 2 dias — se você acabou de começar a testar, o
+   número pode vir como 0, e está certo)
+
+### Ajustando o prazo de retenção depois
+
+Se um dia você quiser mudar de 2 dias pra outro valor (por exemplo,
+se migrar pro plano Blaze e quiser guardar por mais tempo), é só
+uma linha pra mudar, no topo do arquivo
+`cloudflare-worker-validar-codigo.js`:
+```js
+const RETENTION_DAYS = 2;
+```
+Mude esse número, cole o arquivo atualizado no editor do Worker de
+novo, e **Implantar**.
 
 ---
 
@@ -370,6 +436,15 @@ Nenhuma dessas ações precisa mexer em código ou publicar nada de novo
   vírgula separando os dois) — linhas em branco são ignoradas
   automaticamente, então isso é normal se você deixou espaços entre
   os nomes
+
+**A limpeza automática apagou "0 fotos" no botão manual**
+- Normal se ainda não existe nenhuma foto com mais de 2 dias no banco
+  — a limpeza só apaga o que já passou do prazo, não é um erro
+
+**Quero saber se a limpeza automática (agendada) rodou de madrugada**
+- Na Cloudflare, dentro do Worker, vá na aba **"Logs"** — deve
+  aparecer uma execução por dia, no horário configurado no Cron
+  Trigger
 
 **Dá pra usar isso no app principal também?**
 - Sim, mas com calma: recomendo deixar esse ambiente de teste rodando
