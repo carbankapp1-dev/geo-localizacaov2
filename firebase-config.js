@@ -13,7 +13,7 @@ const firebaseConfig = {
 };
 
 // URL pública onde este site de teste está hospedado
-const VERIFY_BASE_URL = "https://carbankapp1-dev.github.io/geocam/verify.html";
+const VERIFY_BASE_URL = "https://carbankapp1-dev.github.io/geo-localizacaov2/verify.html";
 
 // Chave do OpenCage Geocoder.
 const OPENCAGE_API_KEY = "6a31f09acc5d42cfb073514d739e6cb5";
