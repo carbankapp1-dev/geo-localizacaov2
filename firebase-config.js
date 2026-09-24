@@ -16,7 +16,7 @@ const firebaseConfig = {
 const VERIFY_BASE_URL = "https://carbankapp1-dev.github.io/geo-localizacaov2/verify.html";
 
 // Chave do OpenCage Geocoder.
-const OPENCAGE_API_KEY = "61d021d31e9446b285830708c9723087";
+const OPENCAGE_API_KEY = "9a84a26139d5489382ef263ad268e859";
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
