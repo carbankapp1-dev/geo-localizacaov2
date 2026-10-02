@@ -218,6 +218,11 @@
 
   <div id="uploadStatus" class="status hidden"></div>
 
+  <div id="pendingBox" class="info-box hidden" style="border-color:#ff7a7a;">
+    <span id="pendingText"></span>
+    <button id="btnSyncPending" class="btn-link" style="color:#45d492;">🔄 Tentar enviar agora</button>
+  </div>
+
   <div id="qrHolder" style="display:none;"></div>
 
   <button id="installBtn">Instalar aplicativo</button>
@@ -238,6 +243,9 @@ const infoBox = document.getElementById('infoBox');
 const btnShoot = document.getElementById('btnShoot');
 const uploadStatus = document.getElementById('uploadStatus');
 const inputLoja = document.getElementById('inputLoja');
+const pendingBox = document.getElementById('pendingBox');
+const pendingText = document.getElementById('pendingText');
+const btnSyncPending = document.getElementById('btnSyncPending');
 
 // ---------- Persistência do campo no aparelho (cache local) ----------
 const FIELDS_STORAGE_KEY = 'camera-geo-campos';
@@ -277,6 +285,139 @@ function setUploadStatus(msg, kind) {
   uploadStatus.className = 'status' + (kind ? ' ' + kind : '');
   uploadStatus.classList.remove('hidden');
 }
+
+// ============================================================
+// FILA DE REENVIO — fotos cujo registro não foi confirmado no
+// banco (ex: sem internet no momento). Ficam guardadas só neste
+// aparelho (localStorage) até conseguirem gravar de verdade.
+// ============================================================
+const PENDING_STORAGE_KEY = 'geocam-fotos-pendentes';
+let syncingPending = false; // evita duas sincronizações rodando ao mesmo tempo
+
+function lerPendentes() {
+  try {
+    const raw = localStorage.getItem(PENDING_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return []; // localStorage indisponível ou dado corrompido — trata como vazio
+  }
+}
+
+function salvarPendentes(lista) {
+  try {
+    localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(lista));
+  } catch (e) {
+    // Provavelmente estourou o espaço do localStorage (muitas fotos
+    // acumuladas). Não há muito o que fazer além de avisar no console;
+    // a foto desta vez pode não ser guardada para reenvio automático.
+    console.warn('Não foi possível guardar a foto pendente:', e);
+  }
+  atualizarAvisoPendentes();
+}
+
+function adicionarPendente(registro) {
+  const lista = lerPendentes();
+  lista.push(registro);
+  salvarPendentes(lista);
+}
+
+function removerPendente(id) {
+  const lista = lerPendentes().filter((r) => r.id !== id);
+  salvarPendentes(lista);
+}
+
+function atualizarAvisoPendentes() {
+  const lista = lerPendentes();
+  if (lista.length === 0) {
+    pendingBox.classList.add('hidden');
+    return;
+  }
+  pendingText.textContent = lista.length === 1
+    ? '⚠️ 1 foto aguardando conexão para ser registrada. Não desinstale o app nem limpe os dados do navegador até ela ser enviada.'
+    : `⚠️ ${lista.length} fotos aguardando conexão para serem registradas. Não desinstale o app nem limpe os dados do navegador até elas serem enviadas.`;
+  pendingBox.classList.remove('hidden');
+}
+
+// Rejeita a promessa se ela demorar demais — evita ficar esperando
+// para sempre quando o sinal está fraco ou instável.
+function comTempoLimite(promessa, ms) {
+  return Promise.race([
+    promessa,
+    new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error('tempo esgotado')), ms)),
+  ]);
+}
+
+// Tenta gravar um registro no Firestore (usado tanto na captura
+// quanto no reenvio automático da fila).
+async function gravarRegistroNoFirestore(registro) {
+  await comTempoLimite(ensureAuth(), 10000);
+  await comTempoLimite(
+    db.collection('fotos').doc(registro.id).set({
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      capturadoEm: registro.capturadoEm,
+      loja: registro.loja,
+      lat: registro.lat,
+      lon: registro.lon,
+      address: registro.address,
+      imageHash: registro.imageHash,
+      foto: registro.foto,
+      mimeType: registro.mimeType,
+    }),
+    15000
+  );
+}
+
+// Percorre a fila pendente e tenta gravar cada uma, uma de cada vez
+// (evita sobrecarregar uma conexão já fraca com várias ao mesmo tempo).
+// Para no primeiro erro da rodada: se a conexão caiu de novo, não faz
+// sentido insistir nas próximas — a próxima chamada (evento 'online',
+// temporizador ou botão manual) tenta de novo.
+async function tentarSincronizarPendentes() {
+  if (syncingPending) return;
+  const lista = lerPendentes();
+  if (lista.length === 0) return;
+
+  syncingPending = true;
+  btnSyncPending.disabled = true;
+  btnSyncPending.textContent = '🔄 Enviando…';
+
+  let enviadas = 0;
+  for (const registro of lista) {
+    try {
+      await gravarRegistroNoFirestore(registro);
+      removerPendente(registro.id);
+      enviadas++;
+    } catch (err) {
+      break; // ainda sem conexão boa o suficiente — tenta o resto depois
+    }
+  }
+
+  syncingPending = false;
+  btnSyncPending.disabled = false;
+  btnSyncPending.textContent = '🔄 Tentar enviar agora';
+
+  if (enviadas > 0) {
+    const restantes = lerPendentes().length;
+    setUploadStatus(
+      restantes === 0
+        ? `✔ ${enviadas} foto(s) pendente(s) foram registradas agora.`
+        : `✔ ${enviadas} registrada(s); ${restantes} ainda aguardando conexão.`,
+      'ok'
+    );
+  }
+}
+
+btnSyncPending.addEventListener('click', tentarSincronizarPendentes);
+
+// Tenta sozinho: quando o navegador detecta que a internet voltou,
+// quando a aba volta a ficar visível, ao abrir o app, e também a cada
+// 30s como rede de segurança (o evento 'online' nem sempre dispara de
+// forma confiável em celular, especialmente trocando wifi/dados).
+window.addEventListener('online', tentarSincronizarPendentes);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') tentarSincronizarPendentes();
+});
+setInterval(tentarSincronizarPendentes, 30000);
 
 // ---------- Câmera ----------
 async function startCamera() {
@@ -607,18 +748,16 @@ async function shootAndSave() {
     setUploadStatus('Abrindo compartilhamento…');
     await shareOrDownloadPhoto(finalDataUrl, filename);
 
-    setUploadStatus('Autenticando…');
-    await ensureAuth();
-
+    // Monta o registro já aqui (compressão e hash são só processamento
+    // local do canvas — não dependem de internet, então sempre dá pra
+    // preparar o registro, mesmo sem conexão nenhuma).
     setUploadStatus('Compactando foto para o banco de dados…');
     const compressed = await compressToFit(canvas, MAX_FOTO_BASE64_LEN);
     const imageHash = await sha256FromDataUrl(compressed.dataUrl);
 
-    setUploadStatus('Gravando registro…');
-    const createdAt = firebase.firestore.FieldValue.serverTimestamp();
-
-    await db.collection('fotos').doc(id).set({
-      createdAt,
+    const registro = {
+      id,
+      capturadoEm: new Date().toISOString(),
       loja: inputLoja.value.trim(),
       lat: currentCoords ? currentCoords.lat : null,
       lon: currentCoords ? currentCoords.lon : null,
@@ -626,15 +765,28 @@ async function shootAndSave() {
       imageHash,
       foto: compressed.base64,
       mimeType: 'image/jpeg'
-    });
+    };
 
-    setUploadStatus('Foto enviada ✔ — tudo pronto para o próximo carro', 'ok');
+    try {
+      setUploadStatus('Autenticando e gravando registro…');
+      await gravarRegistroNoFirestore(registro);
+      setUploadStatus('Foto enviada ✔ — tudo pronto para o próximo carro', 'ok');
+    } catch (gravarErr) {
+      // Sem conexão boa o suficiente agora. A foto já foi compartilhada,
+      // então guardamos o registro para enviar sozinho assim que a
+      // internet voltar — em vez de simplesmente perder o registro.
+      adicionarPendente(registro);
+      setUploadStatus(
+        '⚠️ Sem conexão para registrar agora. A foto já foi compartilhada, mas o registro ficou pendente e será enviado sozinho quando a internet voltar. Não fique muito tempo sem abrir o app até lá.',
+        'err'
+      );
+    }
 
     // O campo da loja NÃO é limpo — fica pronto para o próximo carro,
     // se o usuário preferir manter os mesmos dados
     setTimeout(resetToCamera, 900);
   } catch (err) {
-    setUploadStatus('Erro ao salvar: ' + err.message, 'err');
+    setUploadStatus('Erro ao gerar a foto: ' + err.message, 'err');
     btnShoot.disabled = false;
     btnShoot.textContent = 'Tirar foto e compartilhar';
   }
@@ -644,6 +796,8 @@ btnShoot.addEventListener('click', shootAndSave);
 
 startCamera();
 startGeolocation();
+atualizarAvisoPendentes();
+tentarSincronizarPendentes();
 
 // ---------- PWA: registro do service worker ----------
 if ('serviceWorker' in navigator) {
