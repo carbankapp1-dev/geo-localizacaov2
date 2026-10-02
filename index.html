@@ -85,6 +85,9 @@
   .field input:focus {
     border-color: #45d492;
   }
+  .field input.campo-obrigatorio-vazio {
+    border-color: #ff5c5c;
+  }
   .stage {
     position: relative;
     width: 100%;
@@ -274,6 +277,20 @@ function restoreFieldsFromStorage() {
 
 inputLoja.addEventListener('input', saveFieldsToStorage);
 restoreFieldsFromStorage();
+
+// ---------- Trava: só libera o botão com câmera pronta E loja preenchida ----------
+let cameraPronta = false;
+
+function atualizarEstadoBotao() {
+  const lojaPreenchida = !!inputLoja.value.trim();
+  btnShoot.disabled = !cameraPronta || !lojaPreenchida;
+  // O contorno vermelho só aparece depois que a pessoa tentou enviar vazio
+  // (ver shootAndSave) ou enquanto ela está digitando e apaga tudo de novo.
+  if (lojaPreenchida) inputLoja.classList.remove('campo-obrigatorio-vazio');
+}
+
+inputLoja.addEventListener('input', atualizarEstadoBotao);
+atualizarEstadoBotao(); // já aplica certo se o nome da loja veio do cache do aparelho
 const installBtn = document.getElementById('installBtn');
 const qrHolder = document.getElementById('qrHolder');
 
@@ -364,7 +381,8 @@ async function startCamera() {
     });
     video.srcObject = stream;
     setStatus('Câmera pronta', 'ok');
-    btnShoot.disabled = false;
+    cameraPronta = true;
+    atualizarEstadoBotao();
   } catch (err) {
     setStatus('Não foi possível acessar a câmera: ' + err.message, 'err');
   }
@@ -376,7 +394,8 @@ async function startCamera() {
 // continua "live", mas nenhum frame novo chega).
 async function restartCamera() {
   setStatus('Reiniciando câmera…');
-  btnShoot.disabled = true;
+  cameraPronta = false;
+  atualizarEstadoBotao();
   try {
     if (stream) {
       stream.getTracks().forEach((t) => t.stop());
@@ -538,7 +557,7 @@ function resetToCamera() {
   video.classList.remove('hidden');
   plateGuide.classList.remove('hidden');
   uploadStatus.classList.add('hidden');
-  btnShoot.disabled = false;
+  atualizarEstadoBotao();
   btnShoot.textContent = 'Tirar foto e compartilhar';
   resumeCameraIfNeeded();
 }
@@ -639,6 +658,14 @@ async function shareOrDownloadPhoto(dataUrl, filename) {
 
 // ---------- Ação única: tira a foto, gera QR, envia e salva ----------
 async function shootAndSave() {
+  if (!inputLoja.value.trim()) {
+    setUploadStatus('⚠️ Preencha o nome da loja antes de tirar a foto.', 'err');
+    inputLoja.classList.add('campo-obrigatorio-vazio');
+    inputLoja.focus();
+    return;
+  }
+  inputLoja.classList.remove('campo-obrigatorio-vazio');
+
   btnShoot.disabled = true;
   btnShoot.textContent = 'Processando…';
   setUploadStatus('Capturando foto…');
@@ -720,7 +747,7 @@ async function shootAndSave() {
     setTimeout(resetToCamera, 900);
   } catch (err) {
     setUploadStatus('Erro ao gerar a foto: ' + err.message, 'err');
-    btnShoot.disabled = false;
+    atualizarEstadoBotao();
     btnShoot.textContent = 'Tirar foto e compartilhar';
   }
 }
