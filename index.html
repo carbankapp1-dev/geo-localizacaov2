@@ -187,6 +187,16 @@
   #btnShoot:disabled {
     opacity: 0.5;
   }
+  #pendingBox.pulsando {
+    animation: pulsoPendencia 1.6s ease-in-out infinite;
+  }
+  @keyframes pulsoPendencia {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 122, 122, 0.55); }
+    50% { box-shadow: 0 0 0 7px rgba(255, 122, 122, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #pendingBox.pulsando { animation: none; }
+  }
 </style>
 </head>
 <body>
@@ -326,17 +336,38 @@ function removerPendente(id) {
   salvarPendentes(lista);
 }
 
+const TITULO_ORIGINAL = document.title;
+
 function atualizarAvisoPendentes() {
   const lista = lerPendentes();
   if (lista.length === 0) {
     pendingBox.classList.add('hidden');
+    pendingBox.classList.remove('pulsando');
+    document.title = TITULO_ORIGINAL;
     return;
   }
   pendingText.textContent = lista.length === 1
     ? '⚠️ 1 foto aguardando conexão para ser registrada. Não desinstale o app nem limpe os dados do navegador até ela ser enviada.'
     : `⚠️ ${lista.length} fotos aguardando conexão para serem registradas. Não desinstale o app nem limpe os dados do navegador até elas serem enviadas.`;
   pendingBox.classList.remove('hidden');
+  pendingBox.classList.add('pulsando');
+  // Aparece mesmo com o app minimizado/em outra aba, quando o sistema
+  // ainda mostra o título da aba (nem todo celular mostra isso, mas em
+  // desktop e em alguns PWAs ajuda a não esquecer da pendência).
+  document.title = `(${lista.length}) ${TITULO_ORIGINAL}`;
 }
+
+// Aviso ao tentar fechar a aba/app com fotos ainda pendentes.
+// Funciona de forma confiável em desktop; em celular (principalmente
+// iPhone), o navegador pode ignorar a mensagem personalizada ou não
+// mostrar nada — por isso o aviso na tela continua sendo a proteção
+// principal, isto aqui é só um reforço extra onde funcionar.
+window.addEventListener('beforeunload', (e) => {
+  if (lerPendentes().length > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 // Rejeita a promessa se ela demorar demais — evita ficar esperando
 // para sempre quando o sinal está fraco ou instável.
@@ -349,8 +380,28 @@ function comTempoLimite(promessa, ms) {
 
 // Tenta gravar um registro no Firestore (usado tanto na captura
 // quanto no reenvio automático da fila).
+// Algumas implementações de ensureAuth() guardam a primeira tentativa
+// de login e nunca tentam de novo sozinhas, mesmo depois da internet
+// voltar — toda chamada seguinte recebe de volta o mesmo erro antigo.
+// Esta função dá uma segunda chance: se ainda não existe usuário
+// autenticado depois de ensureAuth() falhar, tenta um login anônimo
+// direto, por fora, em vez de desistir.
+async function autenticarComRetentativa() {
+  if (firebase.auth().currentUser) return; // já autenticado, nada a fazer
+  try {
+    await ensureAuth();
+  } catch (erroOriginal) {
+    if (firebase.auth().currentUser) return; // autenticou por outro caminho enquanto isso
+    try {
+      await firebase.auth().signInAnonymously();
+    } catch (erroFallback) {
+      throw erroOriginal; // mantém a mensagem original, mais informativa
+    }
+  }
+}
+
 async function gravarRegistroNoFirestore(registro) {
-  await comTempoLimite(ensureAuth(), 10000);
+  await comTempoLimite(autenticarComRetentativa(), 10000);
   await comTempoLimite(
     db.collection('fotos').doc(registro.id).set({
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
