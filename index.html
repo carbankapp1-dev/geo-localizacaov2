@@ -212,7 +212,7 @@
   <div class="field-row">
     <div class="field">
       <label for="inputLoja">Nome da loja</label>
-      <input id="inputLoja" type="text" autocomplete="off">
+      <input id="inputLoja" type="text" autocomplete="off" placeholder="Digite o nome da loja">
     </div>
   </div>
 
@@ -284,9 +284,9 @@ let cameraPronta = false;
 function atualizarEstadoBotao() {
   const lojaPreenchida = !!inputLoja.value.trim();
   btnShoot.disabled = !cameraPronta || !lojaPreenchida;
-  // O contorno vermelho só aparece depois que a pessoa tentou enviar vazio
-  // (ver shootAndSave) ou enquanto ela está digitando e apaga tudo de novo.
-  if (lojaPreenchida) inputLoja.classList.remove('campo-obrigatorio-vazio');
+  // Contorno vermelho sempre que o campo estiver vazio, não só depois de
+  // uma tentativa de envio — assim já avisa antes mesmo de tentar.
+  inputLoja.classList.toggle('campo-obrigatorio-vazio', !lojaPreenchida);
 }
 
 inputLoja.addEventListener('input', atualizarEstadoBotao);
