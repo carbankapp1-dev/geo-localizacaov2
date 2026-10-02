@@ -187,15 +187,9 @@
   #btnShoot:disabled {
     opacity: 0.5;
   }
-  #pendingBox.pulsando {
-    animation: pulsoPendencia 1.6s ease-in-out infinite;
-  }
-  @keyframes pulsoPendencia {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 122, 122, 0.55); }
-    50% { box-shadow: 0 0 0 7px rgba(255, 122, 122, 0); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    #pendingBox.pulsando { animation: none; }
+  #avisoFraco {
+    background: #3a1414;
+    border: 1.5px solid #ff5c5c;
   }
 </style>
 </head>
@@ -228,11 +222,11 @@
 
   <div id="uploadStatus" class="status hidden"></div>
 
-  <div id="pendingBox" class="info-box hidden" style="border-color:#ff7a7a; position:relative; padding-right:34px;">
-    <button id="btnFecharPendente" aria-label="Fechar aviso" title="Esconder (continua tentando sozinho)"
-      style="position:absolute; top:8px; right:8px; background:none; border:none; color:#9db3cc; font-size:18px; line-height:1; padding:4px; cursor:pointer;">✕</button>
-    <span id="pendingText"></span>
-    <button id="btnSyncPending" class="btn-link" style="color:#45d492;">🔄 Tentar enviar agora</button>
+  <div id="avisoFraco" class="info-box hidden" style="position:relative; padding-right:34px;">
+    <button id="btnFecharAvisoFraco" aria-label="Fechar aviso"
+      style="position:absolute; top:6px; right:8px; background:none; border:none; color:#ff5c5c; font-size:22px; line-height:1; padding:4px 8px; cursor:pointer; font-weight:bold;">✕</button>
+    <strong>⚠️ Conexão de internet fraca.</strong><br>
+    Esta foto não foi registrada no sistema. Tire a foto novamente e envie quando o sinal estiver melhor.
   </div>
 
   <div id="qrHolder" style="display:none;"></div>
@@ -255,10 +249,8 @@ const infoBox = document.getElementById('infoBox');
 const btnShoot = document.getElementById('btnShoot');
 const uploadStatus = document.getElementById('uploadStatus');
 const inputLoja = document.getElementById('inputLoja');
-const pendingBox = document.getElementById('pendingBox');
-const pendingText = document.getElementById('pendingText');
-const btnSyncPending = document.getElementById('btnSyncPending');
-const btnFecharPendente = document.getElementById('btnFecharPendente');
+const avisoFraco = document.getElementById('avisoFraco');
+const btnFecharAvisoFraco = document.getElementById('btnFecharAvisoFraco');
 
 // ---------- Persistência do campo no aparelho (cache local) ----------
 const FIELDS_STORAGE_KEY = 'camera-geo-campos';
@@ -300,79 +292,19 @@ function setUploadStatus(msg, kind) {
 }
 
 // ============================================================
-// FILA DE REENVIO — fotos cujo registro não foi confirmado no
-// banco (ex: sem internet no momento). Ficam guardadas só neste
-// aparelho (localStorage) até conseguirem gravar de verdade.
+// AVISO DE CONEXÃO FRACA — simples: se a gravação falhar, mostra
+// um aviso pedindo para repetir a foto. Sem fila, sem reenvio
+// automático. A pessoa decide o que fazer, e o X fecha o aviso.
 // ============================================================
-const PENDING_STORAGE_KEY = 'geocam-fotos-pendentes';
-let syncingPending = false; // evita duas sincronizações rodando ao mesmo tempo
-let avisoFechadoPeloUsuario = false; // true só até a próxima pendência nova aparecer
-
-function lerPendentes() {
-  try {
-    const raw = localStorage.getItem(PENDING_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return []; // localStorage indisponível ou dado corrompido — trata como vazio
-  }
+function mostrarAvisoConexaoFraca() {
+  avisoFraco.classList.remove('hidden');
 }
 
-function salvarPendentes(lista) {
-  try {
-    localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(lista));
-  } catch (e) {
-    // Provavelmente estourou o espaço do localStorage (muitas fotos
-    // acumuladas). Não há muito o que fazer além de avisar no console;
-    // a foto desta vez pode não ser guardada para reenvio automático.
-    console.warn('Não foi possível guardar a foto pendente:', e);
-  }
-  atualizarAvisoPendentes();
+function esconderAvisoConexaoFraca() {
+  avisoFraco.classList.add('hidden');
 }
 
-function adicionarPendente(registro) {
-  const lista = lerPendentes();
-  lista.push(registro);
-  avisoFechadoPeloUsuario = false; // uma pendência nova sempre volta a aparecer, mesmo que a anterior tenha sido fechada
-  salvarPendentes(lista);
-}
-
-function removerPendente(id) {
-  const lista = lerPendentes().filter((r) => r.id !== id);
-  salvarPendentes(lista);
-}
-
-const TITULO_ORIGINAL = document.title;
-
-function atualizarAvisoPendentes() {
-  const lista = lerPendentes();
-  if (lista.length === 0 || avisoFechadoPeloUsuario) {
-    pendingBox.classList.add('hidden');
-    pendingBox.classList.remove('pulsando');
-    document.title = TITULO_ORIGINAL;
-    return;
-  }
-  pendingText.textContent = lista.length === 1
-    ? '⚠️ 1 foto aguardando conexão para ser registrada. Não desinstale o app nem limpe os dados do navegador até ela ser enviada.'
-    : `⚠️ ${lista.length} fotos aguardando conexão para serem registradas. Não desinstale o app nem limpe os dados do navegador até elas serem enviadas.`;
-  pendingBox.classList.remove('hidden');
-  pendingBox.classList.add('pulsando');
-  // Aparece mesmo com o app minimizado/em outra aba, quando o sistema
-  // ainda mostra o título da aba (nem todo celular mostra isso, mas em
-  // desktop e em alguns PWAs ajuda a não esquecer da pendência).
-  document.title = `(${lista.length}) ${TITULO_ORIGINAL}`;
-}
-
-// Aviso ao tentar fechar a aba/app com fotos ainda pendentes.
-// Funciona de forma confiável em desktop; em celular (principalmente
-// iPhone), o navegador pode ignorar a mensagem personalizada ou não
-// mostrar nada — por isso o aviso na tela continua sendo a proteção
-// principal, isto aqui é só um reforço extra onde funcionar.
-window.addEventListener('beforeunload', (e) => {
-  if (lerPendentes().length > 0) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
-});
+btnFecharAvisoFraco.addEventListener('click', esconderAvisoConexaoFraca);
 
 // Rejeita a promessa se ela demorar demais — evita ficar esperando
 // para sempre quando o sinal está fraco ou instável.
@@ -422,74 +354,6 @@ async function gravarRegistroNoFirestore(registro) {
     15000
   );
 }
-
-// Percorre a fila pendente e tenta gravar cada uma, uma de cada vez
-// (evita sobrecarregar uma conexão já fraca com várias ao mesmo tempo).
-// Para no primeiro erro da rodada: se a conexão caiu de novo, não faz
-// sentido insistir nas próximas — a próxima chamada (evento 'online',
-// temporizador ou botão manual) tenta de novo.
-async function tentarSincronizarPendentes(disparadoManualmente) {
-  if (syncingPending) return;
-  const lista = lerPendentes();
-  if (lista.length === 0) return;
-
-  syncingPending = true;
-  btnSyncPending.disabled = true;
-  btnSyncPending.textContent = '🔄 Enviando…';
-
-  let enviadas = 0;
-  let ultimoErro = null;
-  for (const registro of lista) {
-    try {
-      await gravarRegistroNoFirestore(registro);
-      removerPendente(registro.id);
-      enviadas++;
-    } catch (err) {
-      ultimoErro = err;
-      break; // ainda não deu — tenta o resto na próxima vez
-    }
-  }
-
-  syncingPending = false;
-  btnSyncPending.disabled = false;
-  btnSyncPending.textContent = '🔄 Tentar enviar agora';
-
-  if (enviadas > 0) {
-    const restantes = lerPendentes().length;
-    setUploadStatus(
-      restantes === 0
-        ? `✔ ${enviadas} foto(s) pendente(s) foram registradas agora.`
-        : `✔ ${enviadas} registrada(s); ${restantes} ainda aguardando conexão.`,
-      'ok'
-    );
-  } else if (disparadoManualmente && ultimoErro) {
-    // Só mostra o erro quando a PESSOA pediu pra tentar agora — nas
-    // tentativas automáticas (a cada 30s, por exemplo) fica em silêncio
-    // para não poluir a tela sem necessidade.
-    setUploadStatus('Ainda não deu: ' + (ultimoErro.message || String(ultimoErro)), 'err');
-  }
-}
-
-btnFecharPendente.addEventListener('click', () => {
-  avisoFechadoPeloUsuario = true;
-  pendingBox.classList.add('hidden');
-  pendingBox.classList.remove('pulsando');
-  document.title = TITULO_ORIGINAL;
-  // Não apaga a foto da fila — ela continua guardada e o app continua
-  // tentando sozinho por trás, mesmo com o aviso escondido.
-});
-
-btnSyncPending.addEventListener('click', () => tentarSincronizarPendentes(true));
-
-// Tenta sozinho: quando o navegador detecta que a internet voltou,
-// quando a aba volta a ficar visível, ao abrir o app, e também a cada
-// 30s como rede de segurança (o evento 'online' nem sempre dispara de
-// forma confiável em celular, especialmente trocando wifi/dados).
-window.addEventListener('online', tentarSincronizarPendentes);
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') tentarSincronizarPendentes();
-});
-setInterval(tentarSincronizarPendentes, 30000);
 
 // ---------- Câmera ----------
 async function startCamera() {
@@ -843,15 +707,12 @@ async function shootAndSave() {
       setUploadStatus('Autenticando e gravando registro…');
       await gravarRegistroNoFirestore(registro);
       setUploadStatus('Foto enviada ✔ — tudo pronto para o próximo carro', 'ok');
+      esconderAvisoConexaoFraca(); // se tinha ficado aberto de uma falha anterior, some ao dar certo de novo
     } catch (gravarErr) {
       // Sem conexão boa o suficiente agora. A foto já foi compartilhada,
-      // então guardamos o registro para enviar sozinho assim que a
-      // internet voltar — em vez de simplesmente perder o registro.
-      adicionarPendente(registro);
-      setUploadStatus(
-        '⚠️ Sem conexão para registrar agora. A foto já foi compartilhada, mas o registro ficou pendente e será enviado sozinho quando a internet voltar. Não fique muito tempo sem abrir o app até lá.',
-        'err'
-      );
+      // mas o registro não foi salvo — avisa para repetir a foto.
+      uploadStatus.classList.add('hidden');
+      mostrarAvisoConexaoFraca();
     }
 
     // O campo da loja NÃO é limpo — fica pronto para o próximo carro,
@@ -868,8 +729,6 @@ btnShoot.addEventListener('click', shootAndSave);
 
 startCamera();
 startGeolocation();
-atualizarAvisoPendentes();
-tentarSincronizarPendentes();
 
 // ---------- PWA: registro do service worker ----------
 if ('serviceWorker' in navigator) {
