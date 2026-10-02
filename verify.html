@@ -116,7 +116,13 @@
 
   @media print {
     @page { margin: 8mm; }
-    body { background: #ffffff; color: #111827; }
+    body {
+      background: #ffffff;
+      color: #111827;
+      min-height: 0;   /* sem isso, o "100vh" da tela força uma folha inteira e sobra em branco */
+      display: block;  /* o display:flex de centralizar na tela não serve pra impressão */
+    }
+    main { padding: 0; }
     .btn-download { display: none !important; }
     .sub { display: none !important; }
     .card { display: none !important; }
@@ -141,8 +147,6 @@
     <p class="sub">Registro oficial consultado direto do banco de dados</p>
 
     <div id="result" class="hidden">
-      <div class="badge ok">📷 Foto Original</div>
-
       <img id="foto" class="foto" alt="Foto registrada">
 
       <div class="card">
