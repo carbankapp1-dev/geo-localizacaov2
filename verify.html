@@ -122,7 +122,7 @@
       min-height: 0;   /* sem isso, o "100vh" da tela força uma folha inteira e sobra em branco */
       display: block;  /* o display:flex de centralizar na tela não serve pra impressão */
     }
-    main { padding: 0; }
+    main { padding: 0; margin: 0 auto; } /* centraliza mesmo numa folha mais larga que o conteúdo (caso do Android) */
     .btn-download { display: none !important; }
     .sub { display: none !important; }
     .card { display: none !important; }
